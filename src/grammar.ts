@@ -12,10 +12,11 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Container, Text } from '@earendil-works/pi-tui'
 import { loadConfig } from './config.ts'
-import type { Config, GrammarItem, ReviewResult } from './core.ts'
+import type { Config, ReviewResult } from './core.ts'
 import { buildReviewPrompt, parseReviewResult, shouldSkipCheck } from './core.ts'
 import { addCards, loadCards, saveCards } from './flashcards.ts'
 import type { ForkContext } from './llm.ts'
+import { collapsibleRows } from './limit-rows.ts'
 import { resolveModel, runLlm } from './llm.ts'
 import { showTutorWidget } from './tutor.ts'
 
@@ -26,22 +27,17 @@ export interface ReviewDeps {
   makeFork(ctx: ExtensionContext): ForkContext | undefined
 }
 
-function showCheckWidget(
-  ctx: ExtensionContext,
-  items: GrammarItem[],
-  rephrase: string | undefined
-): void {
-  ctx.ui.setWidget(WIDGET_KEY, (_tui, theme) => {
+function showCheckWidget(ctx: ExtensionContext, rephrase: string): void {
+  ctx.ui.setWidget(WIDGET_KEY, (tui, theme) => {
     const container = new Container()
-    container.addChild(new Text(theme.fg('accent', theme.bold('✏ Writing check')), 1, 0))
-    for (const item of items) {
-      const line = `${theme.fg('error', `"${item.wrong}"`)} → ${theme.fg('success', `"${item.right}"`)}  ${theme.fg('dim', item.reason)}`
-      container.addChild(new Text(line, 1, 0))
-    }
-    if (rephrase) {
-      container.addChild(new Text(`${theme.fg('dim', '◇')} ${theme.fg('muted', rephrase)}`, 1, 0))
-    }
-    return container
+    container.addChild(
+      new Text(theme.fg('accent', theme.bold('✏ Writing check (click to toggle)')), 1, 0)
+    )
+    container.addChild(
+      new Text(`${theme.fg('dim', '◇')} ${theme.fg('success', rephrase)}`, 1, 0)
+    )
+    // Collapsed: one heading row plus at most two rows for the corrected sentence.
+    return collapsibleRows(container, 3, tui)
   })
 }
 
@@ -111,12 +107,11 @@ export function registerReview(
       }
 
       // check
-      const items = result.items
       const rephrase = result.rephrase ?? undefined
-      if (items.length === 0 && !rephrase) {
-        ctx.ui.setWidget(WIDGET_KEY, undefined)
+      if (rephrase) {
+        showCheckWidget(ctx, rephrase)
       } else {
-        showCheckWidget(ctx, items, rephrase)
+        ctx.ui.setWidget(WIDGET_KEY, undefined)
       }
     } catch {
       // silent by design: a failed review must never disturb the session

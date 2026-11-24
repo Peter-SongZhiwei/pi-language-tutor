@@ -11,13 +11,16 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Container, Text } from '@earendil-works/pi-tui'
 import type { TutorResult } from './core.ts'
+import { collapsibleRows } from './limit-rows.ts'
 
 const WIDGET_KEY = 'language-learn'
 
 export function showTutorWidget(ctx: ExtensionContext, tutor: TutorResult): void {
-  ctx.ui.setWidget(WIDGET_KEY, (_tui, theme) => {
+  ctx.ui.setWidget(WIDGET_KEY, (tui, theme) => {
     const container = new Container()
-    container.addChild(new Text(theme.fg('accent', theme.bold('✏ Writing tutor')), 1, 0))
+    container.addChild(
+      new Text(theme.fg('accent', theme.bold('✏ Writing tutor (click to toggle)')), 1, 0)
+    )
 
     // Whole-sentence expression — the natural way to say the whole thought.
     if (tutor.sentence) {
@@ -46,7 +49,8 @@ export function showTutorWidget(ctx: ExtensionContext, tutor: TutorResult): void
       }
     }
 
-    return container
+    // Collapsed: one heading row plus at most two rows for the sentence.
+    return collapsibleRows(container, 3, tui)
   })
 }
 
